@@ -1,0 +1,9 @@
+[submodule "blockscout-rs-neti"]
+	path = blockscout-rs-neti
+	url = git@github.com:Golem-Base/blockscout-rs-neti.git
+[submodule "blockscout"]
+	path = blockscout
+	url = git@github.com:Golem-Base/blockscout.git
+[submodule "blockscout-frontend"]
+	path = blockscout-frontend
+	url = git@github.com:Golem-Base/blockscout-frontend.git
