@@ -5,11 +5,24 @@ This is a collection of docker compose and scripts to run the Golem Base L3 deve
 ## Requirements
 
 - Docker
-- Go
-- Rust
-- Foundry
+- Go (chain only)
+- Rust (chain only)
+- Foundry (chain only)
 
 ## Usage 
+
+Copy `.env.example` to `.env`:
+
+```bash
+cp .env.example .env
+```
+
+Available components are defined in `.env` file under `COMPOSE_PROFILES` variable:
+- `db` - blockscout database
+- `backend` - blockscout backend
+- `frontend` - blockscout frontend
+- `services` - blockscout rs services (e.g. golem-base-indexer)
+
 
 Init submodules:
 
@@ -20,10 +33,13 @@ make init
 
 Run chain:
 ```bash
+# bash ./golem-base-dbchains/start-dbchain.sh
 make chain-run
 ```
 
-Run indexer, frontend, and rs services:
+Run stack:
 ```bash
+# docker compose up -d
 make run
 ```
+
