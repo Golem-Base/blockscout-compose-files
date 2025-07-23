@@ -18,11 +18,11 @@ cp .env.example .env
 ```
 
 Available components are defined in `.env` file under `COMPOSE_PROFILES` variable:
-- `db` - blockscout database
 - `backend` - blockscout backend
 - `frontend` - blockscout frontend
 - `services` - blockscout rs services (e.g. golem-base-indexer)
 
+***Before changing components in `.env`, you need to stop the containers.***
 
 Init submodules:
 

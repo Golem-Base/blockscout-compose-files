@@ -8,7 +8,7 @@ logs:
 stop:
 	docker compose down
 clear:
-	rm -rf ./data
+	docker compose down -v
 
 # Golem Base dbchain
 chain-run:
