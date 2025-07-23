@@ -17,21 +17,28 @@ clear:
 init:
 	git submodule update --init --recursive
 
-update:
-	git submodule update --remote --merge --recursive
+sub-update:
+	git submodule update --remote --merge --recursive --force
+
+sub-clear:
+	git submodule foreach --recursive 'git reset --hard HEAD && git clean -fdx'
+
 
 chain-run:
 	bash ./golem-base-dbchains/start-dbchain.sh
 
 chain-stop:
-	docker compose down -f ./golem-base-dbchains/golembase-op-geth/docker-compose.yml
+	docker compose -f ./golem-base-dbchains/golembase-op-geth/docker-compose.yml down
 
 chain-logs:
-	docker compose logs -f ./golem-base-dbchains/golembase-op-geth --tail=100
+	docker compose -f ./golem-base-dbchains/golembase-op-geth/docker-compose.yml logs -f --tail=100
 
 chain-clear:
-	docker compose down -f ./golem-base-dbchains/golembase-op-geth -v 
+	docker compose -f ./golem-base-dbchains/golembase-op-geth/docker-compose.yml down -v
 
-.PHONY: build run logs stop clear init update chain-run chain-stop chain-logs chain-clear
+chain-generate:
+	bash ./golem-base-dbchains/generate-data.sh
+
+.PHONY: build run logs stop clear init update chain-run chain-stop chain-logs chain-clear chain-generate sub-update sub-clear
 
 
