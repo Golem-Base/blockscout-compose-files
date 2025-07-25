@@ -2,7 +2,7 @@
 build:
 	docker compose build 
 run:
-	docker compose up -d
+	docker compose up -d --build
 logs:
 	docker compose logs -f
 stop:
