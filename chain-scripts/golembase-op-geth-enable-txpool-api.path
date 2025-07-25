@@ -1,0 +1,20 @@
+diff --git a/docker-compose.yml b/docker-compose.yml
+index 891e0b8b6..15e0d4cf6 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -27,7 +27,7 @@ services:
+     command: >
+       --dev 
+       --http 
+-      --http.api 'eth,web3,net,debug,golembase' 
++      --http.api 'eth,web3,net,debug,golembase,txpool' 
+       --verbosity 3 
+       --http.addr '0.0.0.0' 
+       --http.port 8545 
+@@ -136,4 +136,4 @@ volumes:
+   mongodb_data:
+   golembase_wal:
+   golembase_sqlite:
+-  geth_data:
+\ No newline at end of file
++  geth_data:

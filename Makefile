@@ -12,15 +12,15 @@ clear:
 
 # Golem Base dbchain
 chain-run:
-	bash ./golem-base-dbchains/start-dbchain.sh
+	bash ./chain-scripts/start-dbchain.sh
 chain-stop:
-	docker compose -f ./golem-base-dbchains/golembase-op-geth/docker-compose.yml down
+	docker compose -f ./golembase-op-geth/docker-compose.yml down
 chain-logs:
-	docker compose -f ./golem-base-dbchains/golembase-op-geth/docker-compose.yml logs -f --tail=100
+	docker compose -f ./golembase-op-geth/docker-compose.yml logs -f --tail=100
 chain-clear:
-	docker compose -f ./golem-base-dbchains/golembase-op-geth/docker-compose.yml down -v
+	docker compose -f ./golembase-op-geth/docker-compose.yml down -v
 chain-generate:
-	bash ./golem-base-dbchains/generate-data.sh
+	bash ./chain-scripts/generate-data.sh
 
 # Submodule management
 sub-deinit:
