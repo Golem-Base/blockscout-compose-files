@@ -46,6 +46,7 @@ services:
       dockerfile: docker/Dockerfile
       args:
         RELEASE_VERSION: 8.1.1
+        CHAIN_TYPE: optimism
     pull_policy: always
     restart: always
     stop_grace_period: 5m
