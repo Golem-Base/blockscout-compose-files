@@ -25,6 +25,8 @@ Available components are defined in `.env` file under `COMPOSE_PROFILES` variabl
 
 ***Before changing components in `.env`, you need to stop the containers.***
 
+See also `envs/*` for configuration of each service. Make sure you harden CORS config for production deployments - these samples open it for all origins.
+
 Init submodules:
 
 ```bash
