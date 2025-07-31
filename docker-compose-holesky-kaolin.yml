@@ -1,0 +1,270 @@
+services:
+  proxy:
+    image: nginxproxy/nginx-proxy:1.8
+    ports:
+      - 443:443
+      - 80:80
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - certs:/etc/nginx/certs:ro
+      - /etc/nginx/vhost.d
+      - /usr/share/nginx/html
+
+  letsencrypt:
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    volumes_from:
+      - proxy
+    volumes:
+      - certs:/etc/nginx/certs:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  db-init:
+    image: postgres:17
+    volumes:
+      - blockscout-db-data:/var/lib/postgresql/data
+    entrypoint:
+      - sh
+      - -c
+      - |
+        chown -R 2000:2000 /var/lib/postgresql/data
+
+  db:
+    image: postgres:17
+    user: 2000:2000
+    shm_size: 256m
+    restart: always
+    container_name: "db"
+    command: postgres -c 'max_connections=200' -c 'client_connection_check_interval=60000'
+    environment:
+      POSTGRES_DB: "blockscout"
+      POSTGRES_USER: "blockscout"
+      POSTGRES_PASSWORD: "ceWb1MeLBEeOIfk65gU8EjF8"
+    volumes:
+      - blockscout-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blockscout -d blockscout"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis-db:
+    image: "redis:alpine"
+    container_name: redis-db
+    command: redis-server
+    volumes:
+      - redis-data:/data
+
+  backend:
+    build:
+      context: ./blockscout
+      dockerfile: docker/Dockerfile
+      args:
+        RELEASE_VERSION: 8.1.1
+        CHAIN_TYPE: optimism
+    pull_policy: always
+    restart: always
+    stop_grace_period: 5m
+    container_name: "backend"
+    command: sh -c "bin/blockscout eval \"Elixir.Explorer.ReleaseTasks.create_and_migrate()\" && bin/blockscout start"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/api/health/readiness"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+    env_file:
+      - ./envs/holesky.kaolin.backend.env
+    environment:
+      - VIRTUAL_HOST=api.kaolin.golem.neti-soft.co
+      - VIRTUAL_PORT=4000
+      - LETSENCRYPT_HOST=api.kaolin.golem.neti-soft.co
+      - LETSENCRYPT_EMAIL=kacper.zuk@neti-soft.com
+    volumes:
+      - backend-logs:/app/logs/
+      - backend-dets:/app/dets/
+    depends_on:
+      - db
+      - redis-db
+    links:
+      - db:database
+    profiles:
+      - backend
+
+  frontend:
+    build:
+      context: ./blockscout-frontend
+      dockerfile: Dockerfile
+    pull_policy: always
+    platform: linux/amd64
+    restart: always
+    container_name: "frontend"
+    env_file:
+      - ./envs/holesky.kaolin.frontend.env
+    environment:
+      - VIRTUAL_HOST=kaolin.golem.neti-soft.co
+      - LETSENCRYPT_HOST=kaolin.golem.neti-soft.co
+      - LETSENCRYPT_EMAIL=kacper.zuk@neti-soft.com
+    profiles:
+      - frontend
+
+  golem-base-indexer:
+    build:
+      context: ./blockscout-rs-neti/golem-base-indexer
+      dockerfile: Dockerfile
+    restart: always
+    container_name: "golem-base-indexer"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8050/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    env_file:
+      - ./envs/golem-base-indexer.env
+    environment:
+      - VIRTUAL_HOST=golem-indexer.kaolin.golem.neti-soft.co
+      - VIRTUAL_PORT=8050
+      - LETSENCRYPT_HOST=golem-indexer.kaolin.golem.neti-soft.co
+      - LETSENCRYPT_EMAIL=kacper.zuk@neti-soft.com
+    volumes:
+      - golem-base-indexer:/app/data/
+    links:
+      - db
+    depends_on:
+      - db
+    profiles:
+      - services
+
+  op-init:
+      image: alpine:latest
+      command:
+          - sh
+          - -c
+          - |
+            set -e
+
+            # Create config directory
+            mkdir -p /config
+
+            # Generate JWT secret if it doesn't exist
+            if [ ! -f '/jwt/jwt' ]; then
+              echo 'Generating JWT secret'
+              mkdir -p /jwt
+              # Generate a 32-byte random hex string for JWT secret
+              apk add --no-cache openssl
+              openssl rand -hex 32 > /jwt/jwt
+              chmod 666 /jwt/jwt
+              echo 'JWT secret generated successfully'
+            else
+              echo 'JWT secret already exists, skipping generation'
+            fi
+      volumes:
+          - op_node_data:/op-node
+          - jwt_shared:/jwt
+  op-geth-init:
+      image: golemnetwork/golembase-l3-op-geth:v1.101511.0-1.2-holesky-kaolin-86151625
+      depends_on:
+          op-init:
+              condition: service_completed_successfully
+      entrypoint: []
+      command:
+          - /bin/sh
+          - -c
+          - |
+            set -e
+            if [ ! -f '/geth/geth' ]; then
+              echo 'Initializing geth data directory with genesis block...'
+
+              # Use genesis file from op-init
+              if ! geth init --state.scheme=hash --datadir='/geth' '/genesis.json'; then
+                echo 'ERROR: Failed to initialize geth with genesis block'
+                exit 1
+              fi
+              echo 'Geth initialized successfully with genesis block'
+            else
+              echo 'Geth data directory already initialized, skipping initialization'
+            fi
+      volumes:
+          - op_geth_data:/geth
+  op-geth:
+      image: golemnetwork/golembase-l3-op-geth:v1.101511.0-1.2-holesky-kaolin-86151625
+      restart: unless-stopped
+      stop_grace_period: 5m
+      depends_on:
+          op-geth-init:
+              condition: service_completed_successfully
+      command:
+          - --networkid=60138453025
+          - --datadir=/geth
+          - --http
+          - --http.corsdomain=*
+          - --http.vhosts=*
+          - --http.addr=0.0.0.0
+          - --http.port=8545
+          - --http.api=admin,debug,eth,txpool,net,engine,web3,golembase,txpool
+          - --ws
+          - --ws.addr=0.0.0.0
+          - --ws.port=8546
+          - --ws.origins=*
+          - --ws.api=admin,debug,eth,txpool,net,engine,web3,golembase,txpool
+          - --syncmode=full
+          - --gcmode=archive
+          - --authrpc.vhosts=*
+          - --authrpc.addr=0.0.0.0
+          - --authrpc.port=8551
+          - --authrpc.jwtsecret=/jwt/jwt
+          - --usb=false
+          - --state.scheme=hash
+          - --nat=none
+          - --bootnodes=enode://500335151a9cd77a0489330671e4d9ea878bcfb2a00ba5fca876c076f0866920c9e2c5572d9bdd97abd3bc616efb953afe2ed8e9e12ed849297d00da9cc3b92e@116.202.192.224:46012,enode://8231f60c41612623e436283e857e518d1b0b64d12b8fbe85ccccaa3495803150a758cf2f9895760ab309d508f0ee907af804d6665cce6561befe94e5c99eb507@116.202.193.109:46014,enode://2917e78973fd3a069f24275732a63b4c2fd5b280f60de0028a24f5bc34ebee81e987eb05388c95212c2366f8f682b3dc6466c72ad76ff03d361a8a7d117c4fa2@116.202.192.224:46016,enode://af8f6ab8f841aa130d4db3d1decaec2960a12006f8d319349ca030d4716a7af9e77111eb5e0e1f23efbabc0c4e837f254cb559fefd1dbe8ee4017f06709f7670@116.202.192.224:46018,enode://f24c21bae18448c6bba80fd7d94ce6892a099b55e6698561e87afa858dd1408976d9f25cc088dcecfa683266538728d745b005a91955f465c93702379207e993@116.202.193.109:46020
+          - --txpool.disable.non.golembase.transactions=true
+      volumes:
+          - op_geth_data:/geth
+          - jwt_shared:/jwt
+  op-node:
+      image: golemnetwork/golembase-l3-op-node:v1.13.4-holesky-kaolin-5527d07c
+      restart: unless-stopped
+      stop_grace_period: 5m
+      depends_on:
+          op-init:
+              condition: service_completed_successfully
+          op-geth:
+              condition: service_started
+      command:
+          - op-node
+          - --l1=https://rpc.l2.holesky.golem-base.io
+          - --l1.beacon.ignore=true
+          - --l1.rpckind=standard
+          - --l1.trustrpc
+          - --l2=http://op-geth:8551
+          - --l2.enginekind=geth
+          - --l2.jwt-secret=/jwt/jwt
+          - --rpc.addr=0.0.0.0
+          - --rpc.port=9545
+          - --p2p.nat=true
+          - --p2p.ban.peers=false
+          - --p2p.bootnodes=enr:-KG4QACpGPS3FBRCmZQpv-nbUfviQ34qMliQXp000y0Avg_lf8YBNhtmJSqyZoyX_pm1XGq3JdsF40U0ORm0LywvPwWGAZhg6A4ZgmlkgnY0gmlwhHTKwOCHb3BzdGFja4eh8J-E4AEAiXNlY3AyNTZrMaECJwGlsYzz3AlhmZu55dYIS5rs1VKTfCXWzzPmMs91VdiDdGNwgrO9g3VkcIKzvQ,enr:-KG4QCVdzeyWnYFc3ClNRAJSZe-rTtw5zuqQyExlnOkH7iqaDKibPgltcCWuljZZgGB_KA3IL9DfULMvgPdlwdlKeVKGAZhg6B7mgmlkgnY0gmlwhHTKwW2Hb3BzdGFja4eh8J-E4AEAiXNlY3AyNTZrMaED7dKjZsrbk27mrupEcTXFN3XpVslasT2jgwWmzf1FO7qDdGNwgrO_g3VkcIKzvw,enr:-KG4QJdQskS_1gCnuS65mWpkn7rVnSgJG6U2fYm07esmuNJHfpS-deWNYRzXAz6lWzLYfrnRNvEEMWhaWf_20RA6rMaGAZhg6BkQgmlkgnY0gmlwhHTKwOCHb3BzdGFja4eh8J-E4AEAiXNlY3AyNTZrMaED9Kr3I0tCv09euDDPV3AuGWN4r1UOYxVqDlTqhkdrzJiDdGNwgrPBg3VkcIKzwQ,enr:-KG4QM32D7k9XCllGL_RmmLgmtQcY7_SKoZRiaDyvBIhw4EJXRRZjPfYvh1X7FkRVyN9kx60n_7mWzcDA7231bfXQmyGAZhg6BlCgmlkgnY0gmlwhHTKwOCHb3BzdGFja4eh8J-E4AEAiXNlY3AyNTZrMaEC88a1ZWzgE-gHGeJCFLbnQ4lrr5Q94R2HmCnQ8DukGs2DdGNwgrPDg3VkcIKzww,enr:-KG4QEndJt_WL1osul7LCwduuhYhP1YWgzFcVBxQPQTBF7EqTgZT6L7EpU2rISYWfblSG6ixBvnmhl1VWrw2vOn-RSKGAZhg6B7vgmlkgnY0gmlwhHTKwW2Hb3BzdGFja4eh8J-E4AEAiXNlY3AyNTZrMaECXrnlBIITrRq_l21pnD1LRgxSnJGWtt5mbj3QbZqkC9mDdGNwgrPFg3VkcIKzxQ
+          - --p2p.listen.tcp=9222
+          - --p2p.listen.udp=9222
+          - --metrics.enabled
+          - --metrics.addr=0.0.0.0
+          - --metrics.port=7300
+          - --syncmode=execution-layer
+          - --rollup.config=/rollup.json
+          - --log.level=info
+      volumes:
+          - jwt_shared:/jwt
+          - op_node_data:/op-node
+
+
+volumes:
+  backend-dets:
+  backend-logs:
+  blockscout-db-data:
+  golem-base-indexer:
+  redis-data:
+  op_geth_data:
+  op_node_data:
+  jwt_shared:
+  certs:
