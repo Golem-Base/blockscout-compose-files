@@ -56,12 +56,7 @@ services:
       - redis-data:/data
 
   backend:
-    build:
-      context: ./blockscout
-      dockerfile: docker/Dockerfile
-      args:
-        RELEASE_VERSION: 8.1.1
-        CHAIN_TYPE: optimism
+    image: golemnetwork/blockscout-optimism:master
     pull_policy: always
     restart: always
     stop_grace_period: 5m
@@ -92,9 +87,7 @@ services:
       - backend
 
   frontend:
-    build:
-      context: ./blockscout-frontend
-      dockerfile: Dockerfile
+    image: golemnetwork/blockscout-frontend:develop
     pull_policy: always
     platform: linux/amd64
     restart: always
@@ -109,17 +102,9 @@ services:
       - frontend
 
   golem-base-indexer:
-    build:
-      context: ./blockscout-rs-neti/golem-base-indexer
-      dockerfile: Dockerfile
+    image: golemnetwork/blockscout-rs-neti:main
     restart: always
     container_name: "golem-base-indexer"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8050/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
     env_file:
       - ./envs/golem-base-indexer.env
     environment:
