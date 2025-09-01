@@ -9,6 +9,7 @@ services:
       - certs:/etc/nginx/certs:ro
       - /etc/nginx/vhost.d
       - /usr/share/nginx/html
+      - ./proxy.conf:/etc/nginx/conf.d/custom-proxy.conf
 
   letsencrypt:
     image: jrcs/letsencrypt-nginx-proxy-companion
@@ -71,9 +72,9 @@ services:
     env_file:
       - ./envs/holesky.kaolin.backend.env
     environment:
-      - VIRTUAL_HOST=api.kaolin.golem.neti-soft.co
+      - VIRTUAL_HOST=api.kaolin.golem.neti-soft.dev
       - VIRTUAL_PORT=4000
-      - LETSENCRYPT_HOST=api.kaolin.golem.neti-soft.co
+      - LETSENCRYPT_HOST=api.kaolin.golem.neti-soft.dev
       - LETSENCRYPT_EMAIL=kacper.zuk@neti-soft.com
     volumes:
       - backend-logs:/app/logs/
@@ -95,8 +96,8 @@ services:
     env_file:
       - ./envs/holesky.kaolin.frontend.env
     environment:
-      - VIRTUAL_HOST=kaolin.golem.neti-soft.co
-      - LETSENCRYPT_HOST=kaolin.golem.neti-soft.co
+      - VIRTUAL_HOST=kaolin.golem.neti-soft.dev
+      - LETSENCRYPT_HOST=kaolin.golem.neti-soft.dev
       - LETSENCRYPT_EMAIL=kacper.zuk@neti-soft.com
     profiles:
       - frontend
@@ -108,9 +109,9 @@ services:
     env_file:
       - ./envs/golem-base-indexer.env
     environment:
-      - VIRTUAL_HOST=golem-indexer.kaolin.golem.neti-soft.co
+      - VIRTUAL_HOST=golem-indexer.kaolin.golem.neti-soft.dev
       - VIRTUAL_PORT=8050
-      - LETSENCRYPT_HOST=golem-indexer.kaolin.golem.neti-soft.co
+      - LETSENCRYPT_HOST=golem-indexer.kaolin.golem.neti-soft.dev
       - LETSENCRYPT_EMAIL=kacper.zuk@neti-soft.com
     volumes:
       - golem-base-indexer:/app/data/
@@ -242,6 +243,53 @@ services:
       - jwt_shared:/jwt
       - op_node_data:/op-node
 
+
+  stats-db-init:
+    image: postgres:17
+    volumes:
+      - stats-db-data:/var/lib/postgresql/data
+    entrypoint:
+      - sh
+      - -c
+      - |
+        chown -R 2000:2000 /var/lib/postgresql/data
+
+  stats-db:
+    image: postgres:17
+    user: 2000:2000
+    shm_size: 256m
+    restart: always
+    container_name: 'stats-db'
+    command: postgres -c 'max_connections=200'
+    environment:
+        POSTGRES_DB: 'stats'
+        POSTGRES_USER: 'stats'
+    volumes:
+      - stats-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stats -d stats"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  stats:
+    image: ghcr.io/blockscout/stats:latest
+    pull_policy: always
+    platform: linux/amd64
+    restart: always
+    container_name: 'stats'
+    environment:
+      - STATS__CREATE_DATABASE=true
+      - STATS__RUN_MIGRATIONS=true
+      - STATS__BLOCKSCOUT_API_URL=https://api.kaolin.golem.neti-soft.dev
+      - STATS__SERVER__HTTP__CORS__ENABLED=true
+      - STATS__SERVER__HTTP__CORS__ALLOWED_ORIGIN=*
+      - VIRTUAL_HOST=stats.kaolin.golem.neti-soft.dev
+      - VIRTUAL_PORT=8050
+      - LETSENCRYPT_HOST=stats.kaolin.golem.neti-soft.dev
+      - LETSENCRYPT_EMAIL=kacper.zuk@neti-soft.com
+
 volumes:
   backend-dets:
   backend-logs:
@@ -252,3 +300,4 @@ volumes:
   op_node_data:
   jwt_shared:
   certs:
+  stats-db-data:
