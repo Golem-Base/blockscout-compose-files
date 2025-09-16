@@ -28,7 +28,7 @@ sender=$(cat "$private_key_path" | od -An -v -tx1 | tr -d ' \n')
 
 cd "$pwd"/blockscout-rs-neti/golem-base-tools/crates/gen-test-data
 calldata=$(cargo run -- \
-  create:"data that will expire immediately":1 \
+  create:"data that will expire immediately":1:expire=true \
   create:"data with annotations":1000:key=val:key2=123 \
   update:$updateme1:"updated data":2000 \
   update:$updateme2:"updated data with annotations":2000:key=updated:updated=1 \
