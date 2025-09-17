@@ -3,30 +3,25 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+cd blockscout-rs-neti/golem-base-tools/crates/gen-test-data
 
-pwd="$(pwd)"
-cd "$pwd"/golembase-op-geth/cmd/golembase
+sender=$(cast rpc eth_accounts | jq -r '.[0]')
+cast_send="cast send --gas-limit 10000000 --unlocked --from $sender 0x0000000000000000000000000000000060138453"
 
-deleteme=$(./golembase entity create --data "data that will be deleted" --btl 1000 | awk '{ print $NF }')
-updateme1=$(./golembase entity create --data "data that will be updated" --btl 1000 | awk '{ print $NF }')
-updateme2=$(./golembase entity create --data "data that will be updated with annotations" --btl 1000 | awk '{ print $NF }')
-extendme=$(./golembase entity create --data "data that will be extended" --btl 1000 | awk '{ print $NF }')
+function storage_send() {
+  calldata=$(cargo run -- "$@")
+  $cast_send $calldata
+}
 
-linux_path=~/.config/golembase/private.key
-mac_path=~/Library/Application\ Support/golembase/private.key
+function create() {
+  storage_send create:"$1":1000 | grep logs | head -1 | awk '{ print $2; }' | jq -r '.[0].topics[1]'
+}
 
-private_key_path=""
-if [ -f "$linux_path" ]; then
-  private_key_path="$linux_path"
-elif [ -f "$mac_path" ]; then
-  private_key_path="$mac_path"
-else
-  echo "Error: Private key not found."
-  exit 1
-fi
-sender=$(cat "$private_key_path" | od -An -v -tx1 | tr -d ' \n')
+deleteme=$(create "data that will be deleted")
+updateme1=$(create "data that will be updated")
+updateme2=$(create "data that will be updated with annotations")
+extendme=$(create "data that will be extended")
 
-cd "$pwd"/blockscout-rs-neti/golem-base-tools/crates/gen-test-data
 calldata=$(cargo run -- \
   create:"data that will expire immediately":1:expire=true \
   create:"data with annotations":1000:key=val:key2=123 \
@@ -35,7 +30,5 @@ calldata=$(cargo run -- \
   delete:$deleteme \
   extend:$extendme:2001)
 
-cast send --private-key $sender 0x0000000000000000000000000000000060138453 $calldata
-
-cd "$pwd"/golembase-op-geth/cmd/golembase
-./golembase entity delete --key 0xdeadbeaf &>/dev/null || true # we want to see a failed transaction onchain and make sure we expire data created in previous tx
+$cast_send $calldata >/dev/null
+storage_send delete:0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd >/dev/null || true # we want to see a failed transaction onchain and make sure we expire data created in previous tx

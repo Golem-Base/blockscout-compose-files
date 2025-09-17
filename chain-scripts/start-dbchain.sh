@@ -17,8 +17,6 @@ docker compose up -d --build
 
 cd cmd/golembase
 go build -o golembase
-./golembase account create
-./golembase account fund
 
 echo
 echo "Running. Visit http://localhost:9000/ to verify."
