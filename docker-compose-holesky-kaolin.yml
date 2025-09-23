@@ -32,7 +32,7 @@ services:
   db:
     image: postgres:17
     user: 2000:2000
-    shm_size: 256m
+    shm_size: 1gb
     restart: always
     container_name: "db"
     command: postgres -c 'max_connections=200' -c 'client_connection_check_interval=60000'
@@ -88,7 +88,7 @@ services:
       - backend
 
   frontend:
-    image: golemnetwork/blockscout-frontend:develop
+    image: golemnetwork/blockscout-frontend:main
     pull_policy: always
     platform: linux/amd64
     restart: always
@@ -180,6 +180,8 @@ services:
     depends_on:
       op-geth-init:
         condition: service_completed_successfully
+    ports:
+      - 127.0.0.1:8545:8545
     command:
       - --networkid=60138453025
       - --datadir=/geth
