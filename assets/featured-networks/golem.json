@@ -1,0 +1,16 @@
+[
+  {
+    "title": "Kaolin (hosted by Arkiv)",
+    "url": "https://explorer.kaolin.hoodi.arkiv.network/",
+    "group": "Testnets",
+    "icon": "https://raw.githubusercontent.com/Golem-Base/blockscout-compose-files/main/assets/arkiv-logo-black.svg",
+    "isActive": true
+  },
+  {
+    "title": "Kaolin (hosted by Neti)",
+    "url": "https://kaolin.golem.neti-soft.dev/",
+    "group": "Testnets",
+    "icon": "https://raw.githubusercontent.com/Golem-Base/blockscout-compose-files/main/assets/arkiv-logo-black.svg",
+    "isActive": false
+  }
+]
