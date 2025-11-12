@@ -4,8 +4,6 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-git submodule update --init
-
 cd blockscout-rs-neti/golem-base-tools/
 cargo build
 
