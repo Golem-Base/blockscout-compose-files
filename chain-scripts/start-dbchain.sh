@@ -11,6 +11,7 @@ cd ../../golembase-op-geth
 patch -N <../chain-scripts/golembase-op-geth-enable-txpool-api.patch || true
 patch -N <../chain-scripts/golembase-op-geth-rpclorer-external-port.patch || true
 patch -N <../chain-scripts/golembase-op-geth-all-interfaces.patch || true
+patch -N <../chain-scripts/golembase-op-geth-enable-archive-mode.patch || true
 docker compose up -d --build
 
 cd cmd/golembase
