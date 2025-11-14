@@ -1,0 +1,10 @@
+--- docker-compose.old	2025-11-14 14:56:24
++++ docker-compose.yml	2025-11-14 14:56:27
+@@ -22,6 +22,7 @@
+       --ws.addr '0.0.0.0' 
+       --ws.port 8545 
+       --datadir '/geth_data'
++      --gcmode archive
+     healthcheck:
+       test: ["CMD", "curl", "-f", "http://localhost:8545"]
+       interval: 5s
